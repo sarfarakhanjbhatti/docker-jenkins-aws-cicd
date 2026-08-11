@@ -82,33 +82,30 @@ pipeline {
             steps {
                 sshagent(['ec2-ssh-key']) {
                     sh '''
-                        ssh -o StrictHostKeyChecking=no \
-                            ubuntu@54.221.84.158 << 'EOF'
+                        ssh -o StrictHostKeyChecking=no ubuntu@54.221.84.158 << 'EOF'
+set -e
 
-                        set -e
+echo "Pulling latest Docker image..."
+docker pull sarfraazz72/docker-jenkins-aws-cicd:latest
 
-                        echo "Pulling latest Docker image..."
-                        docker pull sarfraazz72/docker-jenkins-aws-cicd:latest
+echo "Stopping old container..."
+docker rm -f docker-jenkins-app 2>/dev/null || true
 
-                        echo "Stopping old container..."
-                        docker rm -f docker-jenkins-app 2>/dev/null || true
+echo "Starting new container..."
+docker run -d \
+    --name docker-jenkins-app \
+    -p 80:5000 \
+    --restart unless-stopped \
+    sarfraazz72/docker-jenkins-aws-cicd:latest
 
-                        echo "Starting new container..."
-                        docker run -d \
-                            --name docker-jenkins-app \
-                            -p 80:5000 \
-                            --restart unless-stopped \
-                            sarfraazz72/docker-jenkins-aws-cicd:latest
+echo "Waiting for application..."
+sleep 5
 
-                        echo "Waiting for application..."
-                        sleep 5
+echo "Running health check..."
+curl -f http://localhost/health
 
-                        echo "Running health check..."
-                        curl -f http://localhost/health
-
-                        echo "Deployment successful!"
-
-                        EOF
+echo "Deployment successful!"
+EOF
                     '''
                 }
             }
