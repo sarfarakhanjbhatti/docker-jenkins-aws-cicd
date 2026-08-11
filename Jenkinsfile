@@ -78,13 +78,37 @@ pipeline {
             }
         }
 
-        stage('EC2 SSH Test') {
+        stage('Deploy to EC2') {
             steps {
                 sshagent(['ec2-ssh-key']) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no \
-                            ubuntu@54.221.84.158 \
-                            "whoami && docker --version"
+                            ubuntu@54.221.84.158 << 'EOF'
+
+                        set -e
+
+                        echo "Pulling latest Docker image..."
+                        docker pull sarfraazz72/docker-jenkins-aws-cicd:latest
+
+                        echo "Stopping old container..."
+                        docker rm -f docker-jenkins-app 2>/dev/null || true
+
+                        echo "Starting new container..."
+                        docker run -d \
+                            --name docker-jenkins-app \
+                            -p 80:5000 \
+                            --restart unless-stopped \
+                            sarfraazz72/docker-jenkins-aws-cicd:latest
+
+                        echo "Waiting for application..."
+                        sleep 5
+
+                        echo "Running health check..."
+                        curl -f http://localhost/health
+
+                        echo "Deployment successful!"
+
+                        EOF
                     '''
                 }
             }
@@ -103,6 +127,7 @@ pipeline {
         success {
             echo 'CI/CD pipeline completed successfully!'
             echo 'Docker image pushed to Docker Hub.'
+            echo 'Application deployed successfully to AWS EC2.'
         }
 
         failure {
