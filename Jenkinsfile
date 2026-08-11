@@ -77,6 +77,18 @@ pipeline {
                 '''
             }
         }
+
+        stage('EC2 SSH Test') {
+            steps {
+                sshagent(['ec2-ssh-key']) {
+                    sh '''
+                        ssh -o StrictHostKeyChecking=no \
+                            ubuntu@54.221.84.158 \
+                            "whoami && docker --version"
+                    '''
+                }
+            }
+        }
     }
 
     post {
