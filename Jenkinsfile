@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    environment {
+        DOCKER_IMAGE = 'sarfraazz72/docker-jenkins-aws-cicd'
+    }
+
     stages {
 
         stage('Checkout') {
@@ -25,7 +29,7 @@ pipeline {
         stage('Docker Build') {
             steps {
                 sh '''
-                    docker build -t docker-jenkins-aws-cicd:latest .
+                    docker build -t ${DOCKER_IMAGE}:latest .
                 '''
             }
         }
@@ -36,7 +40,7 @@ pipeline {
                     docker run -d \
                       --name docker-jenkins-test \
                       -p 5001:5000 \
-                      docker-jenkins-aws-cicd:latest
+                      ${DOCKER_IMAGE}:latest
 
                     sleep 5
 
@@ -47,22 +51,50 @@ pipeline {
                 '''
             }
         }
+
+        stage('Docker Hub Login') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-credentials',
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )
+                ]) {
+                    sh '''
+                        echo "$DOCKER_PASSWORD" | docker login \
+                            -u "$DOCKER_USERNAME" \
+                            --password-stdin
+                    '''
+                }
+            }
+        }
+
+        stage('Docker Push') {
+            steps {
+                sh '''
+                    docker push ${DOCKER_IMAGE}:latest
+                '''
+            }
+        }
     }
 
     post {
         always {
             sh '''
                 docker rm -f docker-jenkins-test 2>/dev/null || true
+                docker logout 2>/dev/null || true
                 rm -rf venv-ci
             '''
         }
 
         success {
-            echo 'CI pipeline completed successfully!'
+            echo 'CI/CD pipeline completed successfully!'
+            echo 'Docker image pushed to Docker Hub.'
         }
 
         failure {
-            echo 'CI pipeline failed. Check the console output.'
+            echo 'Pipeline failed. Check the console output.'
         }
     }
 }
